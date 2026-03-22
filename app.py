@@ -29,7 +29,7 @@ API_KEY = os.environ.get("XFYUN_API_KEY", "").strip()
 API_SECRET = os.environ.get("XFYUN_API_SECRET", "").strip()
 ASR_MODE = os.environ.get("XFYUN_ASR_MODE", "slm").strip().lower()
 ASR_LANGUAGE = os.environ.get("XFYUN_ASR_LANGUAGE", "zh_cn").strip()
-ASR_ACCENT = os.environ.get("XFYUN_ASR_ACCENT", "mandarin").strip()
+ASR_ACCENT = os.environ.get("XFYUN_ASR_ACCENT", "mulacc").strip()
 
 
 def has_xfyun_credentials():
@@ -58,7 +58,7 @@ class WsParamASR:
         self.mode = mode
         self.language = language
         self.accent = accent
-        self.ws_host = "iat.xf-yun.com" if self.mode == "slm" else "iat-api.xfyun.cn"
+        self.ws_host = "iat.cn-huabei-1.xf-yun.com" if self.mode == "slm" else "iat-api.xfyun.cn"
         self.ws_path = "/v1" if self.mode == "slm" else "/v2/iat"
 
     def create_first_frame_payload(self, audio_base64):
@@ -268,10 +268,10 @@ def run_asr_client(audio_path):
 
     def on_open(ws):
         def run(*args):
-            frameSize = 5120 if wsParam.mode == "slm" else 8000
+            frameSize = 1280 if wsParam.mode == "slm" else 8000
             intervel = 0.04
             status = 0
-            seq = 1
+            seq = 0
             # 注意：如果 ffmpeg 转换失败，这里打开文件可能会报错，需要确保 ffmpeg 安装正确
             try:
                 with open(audio_path, "rb") as fp:

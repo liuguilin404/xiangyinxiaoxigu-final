@@ -18,7 +18,7 @@ export XFYUN_API_KEY=你的API_KEY
 export XFYUN_API_SECRET=你的API_SECRET
 export XFYUN_ASR_MODE=slm
 export XFYUN_ASR_LANGUAGE=zh_cn
-export XFYUN_ASR_ACCENT=mandarin
+export XFYUN_ASR_ACCENT=mulacc
 ```
 
 3. 确保机器已安装 FFmpeg
@@ -72,5 +72,6 @@ python app.py
 
 - `xfyunAsrMode: "iat"`，说明你当前仍在使用普通语音听写
 - `xfyunAsrMode: "slm"`，说明服务已经切到方言识别大模型接入模式
+- 方言大模型模式下，`XFYUN_ASR_ACCENT` 建议使用 `mulacc`
 
 首次访问免费实例可能会慢几秒，这是 Render 免费服务休眠唤醒的正常现象。

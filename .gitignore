@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.DS_Store
+.ipynb_checkpoints/
+venv/
+.venv/
+env/
+.env
+.env.*
+*.webm
+*.pcm
+tts_*.mp3
+temp_*.webm
+temp_*.pcm

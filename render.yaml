@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: xiangyin-xiaoxigu-3html
+    env: docker
+    plan: free
+    envVars:
+      - key: XFYUN_APP_ID
+        sync: false
+      - key: XFYUN_API_KEY
+        sync: false
+      - key: XFYUN_API_SECRET
+        sync: false

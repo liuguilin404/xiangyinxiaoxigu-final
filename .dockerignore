@@ -1,0 +1,16 @@
+.git
+__pycache__/
+.ipynb_checkpoints/
+.DS_Store
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+env/
+*.webm
+*.pcm
+tts_*.mp3
+temp_*.webm
+temp_*.pcm
+app.ipynb

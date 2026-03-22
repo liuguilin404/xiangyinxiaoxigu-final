@@ -185,10 +185,12 @@ class WsParamASR:
         return url + '?' + urlencode(v)
 
 global_asr_result = ""
+global_asr_error = None
 
 def run_asr_client(audio_path):
-    global global_asr_result
+    global global_asr_result, global_asr_error
     global_asr_result = ""
+    global_asr_error = None
     wsParam = WsParamASR(APP_ID, API_KEY, API_SECRET, mode=ASR_MODE, language=ASR_LANGUAGE, accent=ASR_ACCENT)
     asr_segments = {}
 
@@ -202,23 +204,49 @@ def run_asr_client(audio_path):
                     word = candidate.get("w", "")
                     if word:
                         words.append(word)
-            return payload.get("sn"), "".join(words)
+            return {
+                "sn": payload.get("sn"),
+                "text": "".join(words),
+                "ret": payload.get("ret", 0),
+                "raw": payload
+            }
         except Exception as e:
             print("SLM Result Parse Error:", e)
-            return None, ""
+            return {
+                "sn": None,
+                "text": "",
+                "ret": -1,
+                "raw": {"error": f"SLM result parse failed: {e}"}
+            }
     
     def on_message(ws, message):
-        global global_asr_result
+        global global_asr_result, global_asr_error
         try:
             msg = json.loads(message)
             header = msg.get("header", msg)
             code = header.get("code", 0)
             if code != 0:
+                global_asr_error = {
+                    "stage": "header",
+                    "code": code,
+                    "message": header.get('message', ''),
+                    "mode": wsParam.mode
+                }
                 print(f"ASR Error: {code} - {header.get('message', '')}")
             else:
                 if wsParam.mode == "slm":
                     result_payload = msg.get("payload", {}).get("result", {})
-                    sn, result_text = parse_slm_text(result_payload.get("text", ""))
+                    parsed_result = parse_slm_text(result_payload.get("text", ""))
+                    sn = parsed_result["sn"]
+                    result_text = parsed_result["text"]
+                    if parsed_result["ret"] not in (0, None):
+                        global_asr_error = {
+                            "stage": "result",
+                            "code": parsed_result["ret"],
+                            "message": "SLM result ret != 0",
+                            "mode": wsParam.mode,
+                            "raw": parsed_result["raw"]
+                        }
                     if result_text:
                         if sn is None:
                             global_asr_result += result_text
@@ -443,8 +471,20 @@ def api_recognize():
             os.remove(webm_path)
             os.remove(pcm_path)
         except: pass
+
+        if global_asr_error and not text:
+            return jsonify({
+                'error': 'ASR failed',
+                'message': '讯飞方言识别服务已返回错误',
+                'details': global_asr_error,
+                'mode': ASR_MODE
+            }), 502
         
-        return jsonify({'text': text})
+        return jsonify({
+            'text': text,
+            'mode': ASR_MODE,
+            'details': global_asr_error
+        })
         
     except subprocess.CalledProcessError as e:
         print(f"FFmpeg Error: {e}")

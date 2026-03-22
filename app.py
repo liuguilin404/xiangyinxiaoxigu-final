@@ -27,6 +27,9 @@ PORT = int(os.environ.get("PORT", 5000))
 APP_ID = os.environ.get("XFYUN_APP_ID", "").strip()
 API_KEY = os.environ.get("XFYUN_API_KEY", "").strip()
 API_SECRET = os.environ.get("XFYUN_API_SECRET", "").strip()
+ASR_MODE = os.environ.get("XFYUN_ASR_MODE", "slm").strip().lower()
+ASR_LANGUAGE = os.environ.get("XFYUN_ASR_LANGUAGE", "zh_cn").strip()
+ASR_ACCENT = os.environ.get("XFYUN_ASR_ACCENT", "mandarin").strip()
 
 
 def has_xfyun_credentials():
@@ -48,25 +51,137 @@ CORS(app)
 
 # ========== 3. 讯飞 ASR (语音转写) 逻辑 ==========
 class WsParamASR:
-    def __init__(self, APPID, APIKey, APISecret):
+    def __init__(self, APPID, APIKey, APISecret, mode="slm", language="zh_cn", accent="mandarin"):
         self.APPID = APPID
         self.APIKey = APIKey
         self.APISecret = APISecret
-        self.CommonArgs = {"app_id": self.APPID}
-        self.BusinessArgs = {"domain": "iat", "language": "zh_cn", "accent": "mandarin", "vinfo":1,"vad_eos":10000}
+        self.mode = mode
+        self.language = language
+        self.accent = accent
+        self.ws_host = "iat.xf-yun.com" if self.mode == "slm" else "iat-api.xfyun.cn"
+        self.ws_path = "/v1" if self.mode == "slm" else "/v2/iat"
+
+    def create_first_frame_payload(self, audio_base64):
+        if self.mode == "slm":
+            return {
+                "header": {
+                    "app_id": self.APPID,
+                    "status": 0
+                },
+                "parameter": {
+                    "iat": {
+                        "domain": "slm",
+                        "language": self.language,
+                        "accent": self.accent,
+                        "eos": 6000,
+                        "vinfo": 1,
+                        "result": {
+                            "encoding": "utf8",
+                            "compress": "raw",
+                            "format": "json"
+                        }
+                    }
+                },
+                "payload": {
+                    "audio": {
+                        "encoding": "raw",
+                        "sample_rate": 16000,
+                        "channels": 1,
+                        "bit_depth": 16,
+                        "seq": 1,
+                        "status": 0,
+                        "audio": audio_base64
+                    }
+                }
+            }
+
+        return {
+            "common": {"app_id": self.APPID},
+            "business": {
+                "domain": "iat",
+                "language": self.language,
+                "accent": self.accent,
+                "vinfo": 1,
+                "vad_eos": 10000
+            },
+            "data": {
+                "status": 0,
+                "format": "audio/L16;rate=16000",
+                "audio": audio_base64,
+                "encoding": "raw"
+            }
+        }
+
+    def create_continue_frame_payload(self, audio_base64, seq):
+        if self.mode == "slm":
+            return {
+                "header": {
+                    "app_id": self.APPID,
+                    "status": 1
+                },
+                "payload": {
+                    "audio": {
+                        "encoding": "raw",
+                        "sample_rate": 16000,
+                        "channels": 1,
+                        "bit_depth": 16,
+                        "seq": seq,
+                        "status": 1,
+                        "audio": audio_base64
+                    }
+                }
+            }
+
+        return {
+            "data": {
+                "status": 1,
+                "format": "audio/L16;rate=16000",
+                "audio": audio_base64,
+                "encoding": "raw"
+            }
+        }
+
+    def create_last_frame_payload(self, audio_base64, seq):
+        if self.mode == "slm":
+            return {
+                "header": {
+                    "app_id": self.APPID,
+                    "status": 2
+                },
+                "payload": {
+                    "audio": {
+                        "encoding": "raw",
+                        "sample_rate": 16000,
+                        "channels": 1,
+                        "bit_depth": 16,
+                        "seq": seq,
+                        "status": 2,
+                        "audio": audio_base64
+                    }
+                }
+            }
+
+        return {
+            "data": {
+                "status": 2,
+                "format": "audio/L16;rate=16000",
+                "audio": audio_base64,
+                "encoding": "raw"
+            }
+        }
 
     def create_url(self):
-        url = 'wss://iat-api.xfyun.cn/v2/iat'
+        url = f"wss://{self.ws_host}{self.ws_path}"
         now = datetime.now()
         date = format_date_time(time.mktime(now.timetuple()))
-        signature_origin = "host: " + "iat-api.xfyun.cn" + "\n"
+        signature_origin = "host: " + self.ws_host + "\n"
         signature_origin += "date: " + date + "\n"
-        signature_origin += "GET " + "/v2/iat " + "HTTP/1.1"
+        signature_origin += "GET " + self.ws_path + " HTTP/1.1"
         signature_sha = hmac.new(self.APISecret.encode('utf-8'), signature_origin.encode('utf-8'), digestmod=hashlib.sha256).digest()
         signature_sha = base64.b64encode(signature_sha).decode(encoding='utf-8')
         authorization_origin = f'api_key="{self.APIKey}", algorithm="hmac-sha256", headers="host date request-line", signature="{signature_sha}"'
         authorization = base64.b64encode(authorization_origin.encode('utf-8')).decode(encoding='utf-8')
-        v = {"authorization": authorization, "date": date, "host": "iat-api.xfyun.cn"}
+        v = {"authorization": authorization, "date": date, "host": self.ws_host}
         return url + '?' + urlencode(v)
 
 global_asr_result = ""
@@ -74,22 +189,49 @@ global_asr_result = ""
 def run_asr_client(audio_path):
     global global_asr_result
     global_asr_result = ""
-    wsParam = WsParamASR(APP_ID, API_KEY, API_SECRET)
+    wsParam = WsParamASR(APP_ID, API_KEY, API_SECRET, mode=ASR_MODE, language=ASR_LANGUAGE, accent=ASR_ACCENT)
+    asr_segments = {}
+
+    def parse_slm_text(encoded_text):
+        try:
+            decoded = base64.b64decode(encoded_text).decode("utf-8")
+            payload = json.loads(decoded)
+            words = []
+            for item in payload.get("ws", []):
+                for candidate in item.get("cw", []):
+                    word = candidate.get("w", "")
+                    if word:
+                        words.append(word)
+            return payload.get("sn"), "".join(words)
+        except Exception as e:
+            print("SLM Result Parse Error:", e)
+            return None, ""
     
     def on_message(ws, message):
         global global_asr_result
         try:
             msg = json.loads(message)
-            code = msg["code"]
+            header = msg.get("header", msg)
+            code = header.get("code", 0)
             if code != 0:
-                print(f"ASR Error: {code}")
+                print(f"ASR Error: {code} - {header.get('message', '')}")
             else:
-                data = msg["data"]["result"]["ws"]
-                result = ""
-                for i in data:
-                    for w in i["cw"]:
-                        result += w["w"]
-                global_asr_result += result
+                if wsParam.mode == "slm":
+                    result_payload = msg.get("payload", {}).get("result", {})
+                    sn, result_text = parse_slm_text(result_payload.get("text", ""))
+                    if result_text:
+                        if sn is None:
+                            global_asr_result += result_text
+                        else:
+                            asr_segments[sn] = result_text
+                            global_asr_result = "".join(asr_segments[index] for index in sorted(asr_segments))
+                else:
+                    data = msg["data"]["result"]["ws"]
+                    result = ""
+                    for i in data:
+                        for w in i["cw"]:
+                            result += w["w"]
+                    global_asr_result += result
         except Exception as e:
             print("ASR Message Error:", e)
 
@@ -98,33 +240,29 @@ def run_asr_client(audio_path):
 
     def on_open(ws):
         def run(*args):
-            frameSize = 8000
+            frameSize = 5120 if wsParam.mode == "slm" else 8000
             intervel = 0.04
             status = 0
+            seq = 1
             # 注意：如果 ffmpeg 转换失败，这里打开文件可能会报错，需要确保 ffmpeg 安装正确
             try:
                 with open(audio_path, "rb") as fp:
                     while True:
                         buf = fp.read(frameSize)
                         if not buf: status = 2
+                        audio_base64 = str(base64.b64encode(buf), 'utf-8')
                         
                         if status == 0:
-                            d = {"common": wsParam.CommonArgs,
-                                 "business": wsParam.BusinessArgs,
-                                 "data": {"status": 0, "format": "audio/L16;rate=16000",
-                                          "audio": str(base64.b64encode(buf), 'utf-8'),
-                                          "encoding": "raw"}}
+                            d = wsParam.create_first_frame_payload(audio_base64)
                             ws.send(json.dumps(d))
                             status = 1
                         elif status == 1:
-                            d = {"data": {"status": 1, "format": "audio/L16;rate=16000",
-                                          "audio": str(base64.b64encode(buf), 'utf-8'),
-                                          "encoding": "raw"}}
+                            seq += 1
+                            d = wsParam.create_continue_frame_payload(audio_base64, seq)
                             ws.send(json.dumps(d))
                         elif status == 2:
-                            d = {"data": {"status": 2, "format": "audio/L16;rate=16000",
-                                          "audio": str(base64.b64encode(buf), 'utf-8'),
-                                          "encoding": "raw"}}
+                            seq += 1
+                            d = wsParam.create_last_frame_payload(audio_base64, seq)
                             ws.send(json.dumps(d))
                             time.sleep(1)
                             break
@@ -260,7 +398,10 @@ def index():
 def api_health():
     return jsonify({
         'status': 'ok',
-        'hasXfyunCredentials': has_xfyun_credentials()
+        'hasXfyunCredentials': has_xfyun_credentials(),
+        'xfyunAsrMode': ASR_MODE,
+        'xfyunAsrLanguage': ASR_LANGUAGE,
+        'xfyunAsrAccent': ASR_ACCENT,
     })
 
 @app.route('/api/recognize', methods=['POST'])

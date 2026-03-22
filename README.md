@@ -16,6 +16,9 @@ pip install -r requirements.txt
 export XFYUN_APP_ID=你的APP_ID
 export XFYUN_API_KEY=你的API_KEY
 export XFYUN_API_SECRET=你的API_SECRET
+export XFYUN_ASR_MODE=slm
+export XFYUN_ASR_LANGUAGE=zh_cn
+export XFYUN_ASR_ACCENT=mandarin
 ```
 
 3. 确保机器已安装 FFmpeg
@@ -40,6 +43,9 @@ python app.py
    `XFYUN_APP_ID`
    `XFYUN_API_KEY`
    `XFYUN_API_SECRET`
+   `XFYUN_ASR_MODE`
+   `XFYUN_ASR_LANGUAGE`
+   `XFYUN_ASR_ACCENT`
 6. 点击创建服务，等待构建完成
 
 部署完成后，Render 会生成一个公网地址，例如：
@@ -61,5 +67,10 @@ python app.py
 `/api/health`
 
 返回 `hasXfyunCredentials: true` 说明讯飞密钥已正确注入。
+
+如果你看到：
+
+- `xfyunAsrMode: "iat"`，说明你当前仍在使用普通语音听写
+- `xfyunAsrMode: "slm"`，说明服务已经切到方言识别大模型接入模式
 
 首次访问免费实例可能会慢几秒，这是 Render 免费服务休眠唤醒的正常现象。

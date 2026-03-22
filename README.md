@@ -1,6 +1,6 @@
-# 乡音小戏骨 3html增强版
+# 乡音小戏骨-终版
 
-这是一个基于 Flask 的方言戏剧体验项目增强版，保留现有功能，并额外合入了 `3.html` 中“故事铺原创剧本可直接进入大戏台并表演”的增强逻辑。
+这是一个基于 Flask 的方言戏剧体验项目终版，保留现有功能，并额外合入了 `3.html` 中“故事铺原创剧本可直接进入大戏台并表演”的增强逻辑。
 
 ## 本地运行
 
@@ -44,7 +44,7 @@ python app.py
 
 部署完成后，Render 会生成一个公网地址，例如：
 
-`https://xiangyin-xiaoxigu.onrender.com`
+`https://xiangyinxiaoxigu-final.onrender.com`
 
 当前项目使用 Docker 部署，镜像内已经包含 `ffmpeg`，所以比直接 Python 构建更适合语音功能。
 

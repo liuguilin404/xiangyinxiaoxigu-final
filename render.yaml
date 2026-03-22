@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: xiangyin-xiaoxigu-3html
+    name: xiangyinxiaoxigu-final
     env: docker
     plan: free
     envVars:

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>乡音小戏骨</title>
+    <title>乡音小戏骨-终版</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/lucide@0.544.0/dist/umd/lucide.min.js">
         <!-- // [新增] 全局录音相关变量
@@ -8291,8 +8291,11 @@
                         if (recognizedText && recognizedText.trim().length > 0) {
                             displayHtml += `<div style="color:#333;font-weight:bold;margin-bottom:4px;">${recognizedText}</div>`;
                         } else {
-                            displayHtml += `<div style="color:#e74c3c;">(未检测到清晰语音)</div>`;
-                            // 如果真的啥都没听到，分数强制归零
+                            if (audioBlob.size > 5000) {
+                                displayHtml += `<div style="color:#e67e22;">(录音已收到，但AI暂时没有识别出有效文字，可能是方言识别偏差或服务返回为空)</div>`;
+                            } else {
+                                displayHtml += `<div style="color:#e74c3c;">(这次录音内容过短，AI暂时没听清)</div>`;
+                            }
                             finalScore = 0; 
                         }
 
@@ -9236,7 +9239,7 @@
                     if (loading) {
                         loading.style.display = 'none';
                     }
-                    showNotification('欢迎来到乡音小戏骨！');
+                    showNotification('欢迎来到乡音小戏骨-终版！');
                 }, 1200);
                 
                 // 初始化剧本库

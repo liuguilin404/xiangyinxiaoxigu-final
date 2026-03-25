@@ -195,8 +195,24 @@ def run_asr_client(audio_path):
     asr_segments = {}
 
     def parse_slm_text(encoded_text):
+        if not encoded_text:
+            return {
+                "sn": None,
+                "text": "",
+                "ret": 0,
+                "raw": {}
+            }
+
         try:
             decoded = base64.b64decode(encoded_text).decode("utf-8")
+            if not decoded.strip():
+                return {
+                    "sn": None,
+                    "text": "",
+                    "ret": 0,
+                    "raw": {"decoded": ""}
+                }
+
             payload = json.loads(decoded)
             words = []
             for item in payload.get("ws", []):
@@ -211,6 +227,18 @@ def run_asr_client(audio_path):
                 "raw": payload
             }
         except Exception as e:
+            try:
+                decoded = base64.b64decode(encoded_text).decode("utf-8", errors="ignore")
+                if decoded.strip():
+                    return {
+                        "sn": None,
+                        "text": decoded.strip(),
+                        "ret": 0,
+                        "raw": {"decoded": decoded, "fallback": "plain_text"}
+                    }
+            except Exception:
+                pass
+
             print("SLM Result Parse Error:", e)
             return {
                 "sn": None,

@@ -73,7 +73,11 @@ class WsParamASR:
                         "domain": "slm",
                         "language": self.language,
                         "accent": self.accent,
-                        "eos": 6000,
+                        "eos": 1800,
+                        "dwa": "wpgs",
+                        "ptt": 1,
+                        "nunum": 1,
+                        "ltc": 0,
                         "vinfo": 1,
                         "result": {
                             "encoding": "utf8",
@@ -88,7 +92,7 @@ class WsParamASR:
                         "sample_rate": 16000,
                         "channels": 1,
                         "bit_depth": 16,
-                        "seq": 1,
+                        "seq": 0,
                         "status": 0,
                         "audio": audio_base64
                     }
@@ -458,6 +462,7 @@ def api_health():
         'xfyunAsrMode': ASR_MODE,
         'xfyunAsrLanguage': ASR_LANGUAGE,
         'xfyunAsrAccent': ASR_ACCENT,
+        'xfyunAsrHost': 'iat.cn-huabei-1.xf-yun.com' if ASR_MODE == 'slm' else 'iat-api.xfyun.cn',
     })
 
 @app.route('/api/recognize', methods=['POST'])

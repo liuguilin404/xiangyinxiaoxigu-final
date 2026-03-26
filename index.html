@@ -3685,7 +3685,7 @@
                         </div>
                         <!-- ========== [新增] 录音反馈显示区 开始 ========== -->
                         <div id="userFeedbackArea" style="display: none; width: 100%; margin-bottom: 15px; background: #fff; padding: 12px; border-radius: 12px; border: 2px dashed #8c2131; text-align: left;">
-                            <div style="font-size: 0.85rem; color: #888; margin-bottom: 4px;">AI听到了：</div>
+                            <div style="font-size: 0.85rem; color: #888; margin-bottom: 4px;">本句练习参考：</div>
                             <div id="userRecognizedText" style="font-size: 1.1rem; color: #333; font-weight: bold; margin-bottom: 8px; line-height: 1.4;"></div>
                             <div id="aiCoachPanel" style="display: none; background: #fcf5ef; border-radius: 10px; padding: 10px; margin-bottom: 8px; border: 1px solid #f0d8c5;">
                                 <div style="font-size: 0.8rem; color: #8c2131; font-weight: bold; margin-bottom: 6px;">AI评价与点评</div>
@@ -8118,6 +8118,35 @@
         return { summary, suggestions, confidenceNote };
     }
 
+    function escapeHtml(text) {
+        return String(text || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function buildOriginalLinePreview(originalText, recognizedText) {
+        const cleanRecSet = new Set(
+            String(recognizedText || '')
+                .replace(/[^\u4e00-\u9fa50-9]/g, '')
+                .split('')
+                .filter(Boolean)
+        );
+
+        if (!cleanRecSet.size) {
+            return `<span>${escapeHtml(originalText)}</span>`;
+        }
+
+        return Array.from(String(originalText || '')).map(char => {
+            if (/[一-龥0-9]/.test(char) && cleanRecSet.has(char)) {
+                return `<span style="color:#8c2131;background:#fdf0f2;padding:0 2px;border-radius:4px;">${escapeHtml(char)}</span>`;
+            }
+            return `<span>${escapeHtml(char)}</span>`;
+        }).join('');
+    }
+
     function getSupportedAudioMimeType() {
         if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function') {
             return '';
@@ -8283,28 +8312,23 @@
                         // 1. 计算宽松分数
                         let finalScore = calculateSimilarity(originalText, recognizedText);
 
-                        // 2. 🌟【核心修改】双重展示逻辑 🌟
-                        // 我们构建一段 HTML，同时包含“识别结果”和“原台词”
-                        let displayHtml = "";
-
-                        // A. 第一行：显示识别结果
-                        if (recognizedText && recognizedText.trim().length > 0) {
-                            displayHtml += `<div style="color:#333;font-weight:bold;margin-bottom:4px;">${recognizedText}</div>`;
-                        } else {
-                            if (audioBlob.size > 5000) {
-                                displayHtml += `<div style="color:#e67e22;">(录音已收到，但AI暂时没有识别出有效文字，可能是方言识别偏差或服务返回为空)</div>`;
-                            } else {
-                                displayHtml += `<div style="color:#e74c3c;">(这次录音内容过短，AI暂时没听清)</div>`;
-                            }
-                            finalScore = 0; 
-                        }
-
-                        // B. 第二行：显示原台词参考 (始终显示，用灰色小字)
-                        displayHtml += `
-                            <div style="font-size: 0.85em; color: #888; border-top: 1px dashed #eee; padding-top: 4px; margin-top: 4px;">
-                                参考：${originalText}
+                        let displayHtml = `
+                            <div style="font-size: 0.82em; color: #888; margin-bottom: 6px;">原台词</div>
+                            <div style="color:#333;font-weight:bold;line-height:1.6;">
+                                ${buildOriginalLinePreview(originalText, recognizedText)}
                             </div>
                         `;
+
+                        if (!recognizedText || recognizedText.trim().length === 0) {
+                            if (audioBlob.size > 5000) {
+                                displayHtml += `<div style="color:#e67e22;font-size:0.85em;margin-top:6px;">AI暂时没有稳定识别出文字，已按原台词继续点评。</div>`;
+                            } else {
+                                displayHtml += `<div style="color:#e74c3c;font-size:0.85em;margin-top:6px;">这次录音内容偏短，建议再录一次。</div>`;
+                            }
+                            finalScore = 0;
+                        } else {
+                            displayHtml += `<div style="color:#8c2131;font-size:0.82em;margin-top:6px;">已按识别到的关键词对原台词做参考高亮。</div>`;
+                        }
                         
                         // 渲染到界面
                         textBox.innerHTML = displayHtml;

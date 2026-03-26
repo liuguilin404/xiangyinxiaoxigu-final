@@ -77,7 +77,7 @@ class WsParamASR:
                         "dwa": "wpgs",
                         "ptt": 1,
                         "nunum": 1,
-                        "ltc": 0,
+                        "ltc": 1,
                         "vinfo": 1,
                         "result": {
                             "encoding": "utf8",
